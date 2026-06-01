@@ -1,0 +1,87 @@
+/**
+ * Cofferdam API Worker — Cloudflare config.
+ *
+ * Schema reference: https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * Bindings declared here are all NAMED but mostly NOT YET PROVISIONED (KV,
+ * R2, D1 IDs are placeholders). They're declared so the env-types compile;
+ * actual provisioning happens via `wrangler kv:namespace create ...`,
+ * `wrangler r2 bucket create ...`, `wrangler d1 create ...` in later
+ * sessions when those surfaces light up.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cofferdam-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-30",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Observability — enable Workers Logs (free tier, 7-day retention).
+  "observability": {
+    "enabled": true
+  },
+
+  // Public-facing routes ship in a later session when DNS for
+  // api.cofferdam.xyz is provisioned. For now, the workers.dev
+  // hostname is enough for end-to-end testing from the RN app.
+  "workers_dev": true,
+
+  // Variables — non-secret. Secrets live in `wrangler secret put`.
+  "vars": {
+    "ENVIRONMENT": "development",
+    "ZKSYNC_SEPOLIA_RPC_URL": "https://sepolia.era.zksync.dev"
+  },
+
+  // ─────────────────────────────────────────────────────────────────
+  // Service bindings — cross-Worker calls (private, no public ingress).
+  //
+  // ATTESTER → cofferdam-attester (Session 3).
+  //   Holds the SelfAttester ECDSA key and signs bind messages over
+  //   Workers RPC. Local dev: both workers must be running (`yarn dev`
+  //   in each); wrangler 4 auto-discovers the binding via the local
+  //   registry. Production: both workers deploy to the same Cloudflare
+  //   account and the binding resolves at request time.
+  // ─────────────────────────────────────────────────────────────────
+  "services": [
+    { "binding": "ATTESTER", "service": "cofferdam-attester" }
+    // PROVER service binding lights up in Session 4-5.
+  ]
+
+  // Bindings below are intentionally COMMENTED until their resources
+  // are provisioned. Uncomment + fill IDs as we go through Sessions 4-N.
+  //
+  // ─────────────────────────────────────────────────────────────────
+  // KV — session storage, profile pointers, Bloom filter snapshots
+  // ─────────────────────────────────────────────────────────────────
+  // "kv_namespaces": [
+  //   { "binding": "SESSIONS", "id": "<TBD-session-3>" },
+  //   { "binding": "PROFILES", "id": "<TBD-after-T1.1>" }
+  // ],
+  //
+  // ─────────────────────────────────────────────────────────────────
+  // R2 — encrypted blobs (vault docs, attachments, SRS)
+  // ─────────────────────────────────────────────────────────────────
+  // "r2_buckets": [
+  //   { "binding": "VAULT", "bucket_name": "cofferdam-vault" },
+  //   { "binding": "SRS",   "bucket_name": "cofferdam-srs" }
+  // ],
+  //
+  // ─────────────────────────────────────────────────────────────────
+  // D1 — non-sensitive metadata + audit logs
+  // ─────────────────────────────────────────────────────────────────
+  // "d1_databases": [
+  //   { "binding": "DB", "database_name": "cofferdam", "database_id": "<TBD>" }
+  // ],
+  //
+  // ─────────────────────────────────────────────────────────────────
+  // Durable Objects — SessionDO, ConversationDO, etc.
+  // ─────────────────────────────────────────────────────────────────
+  // "durable_objects": {
+  //   "bindings": [
+  //     { "name": "SESSION_DO", "class_name": "SessionDO" }
+  //   ]
+  // },
+  // "migrations": [
+  //   { "tag": "v1", "new_classes": ["SessionDO"] }
+  // ],
+}
