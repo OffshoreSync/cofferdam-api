@@ -1,3 +1,6 @@
+// Copyright (c) 2026 OffshoreSync LLC
+// SPDX-License-Identifier: Apache-2.0
+
 import { Hono } from 'hono';
 import type { Env } from '../env.js';
 import { getSepoliaClient } from '../chain/client.js';

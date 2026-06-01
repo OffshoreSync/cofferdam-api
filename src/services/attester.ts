@@ -1,3 +1,6 @@
+// Copyright (c) 2026 OffshoreSync LLC
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Local copy of the Cofferdam attester RPC contract.
  *

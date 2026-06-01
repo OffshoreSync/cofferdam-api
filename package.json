@@ -4,6 +4,16 @@
   "private": true,
   "type": "module",
   "description": "Cofferdam main HTTP edge — Hono router, REST API, session challenge/exchange, on-chain reads.",
+  "license": "Apache-2.0",
+  "author": "OffshoreSync LLC",
+  "homepage": "https://github.com/OffshoreSync/cofferdam-api#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OffshoreSync/cofferdam-api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OffshoreSync/cofferdam-api/issues"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
