@@ -17,6 +17,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env } from './env.js';
 import { attesterRoutes } from './routes/attester.js';
+import { enterpriseRoutes } from './routes/enterprise.js';
 import { healthRoutes } from './routes/health.js';
 import { sepoliaRoutes } from './routes/sepolia.js';
 
@@ -47,6 +48,12 @@ app.get('/', (c) => {
       { method: 'GET', path: '/health' },
       { method: 'GET', path: '/sepolia/block-height' },
       { method: 'GET', path: '/sepolia/contracts' },
+      { method: 'GET', path: '/v1/enterprise/resolve?domain=' },
+      { method: 'GET', path: '/v1/enterprise/companies/:companyRef' },
+      { method: 'POST', path: '/v1/enterprise/links' },
+      { method: 'GET', path: '/v1/enterprise/links?companyRef=' },
+      { method: 'GET', path: '/v1/enterprise/links/check?companyRef=&consumerId=' },
+      { method: 'POST', path: '/v1/enterprise/links/:companyRef/:consumerId/revoke' },
       { method: 'POST', path: '/v1/attester/test-sign' },
     ],
     docs: 'See cofferdam-app/backend/README.md',
@@ -57,6 +64,7 @@ app.get('/', (c) => {
 app.route('/health', healthRoutes);
 app.route('/sepolia', sepoliaRoutes);
 app.route('/v1/attester', attesterRoutes);
+app.route('/v1/enterprise', enterpriseRoutes);
 
 // ── 404 ────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ ok: false, error: 'not_found' }, 404));

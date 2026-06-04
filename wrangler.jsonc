@@ -51,11 +51,20 @@
   // are provisioned. Uncomment + fill IDs as we go through Sessions 4-N.
   //
   // ─────────────────────────────────────────────────────────────────
-  // KV — session storage, profile pointers, Bloom filter snapshots
+  // KV — session storage, profile pointers, Bloom filter snapshots,
+  //      CompanyConsumerLink grants (rev-7.4 company plane).
+  //
+  // To light up the /v1/enterprise/links/* routes:
+  //   1. wrangler kv namespace create LINKS
+  //   2. paste the returned id below and uncomment the LINKS line
+  //   (env.ts already declares `LINKS?: KVNamespace` as optional — no change there)
+  // Until then the link routes return 503 link_store_unprovisioned and the
+  // rest of the Worker (incl. /v1/enterprise/resolve) is unaffected.
   // ─────────────────────────────────────────────────────────────────
   // "kv_namespaces": [
   //   { "binding": "SESSIONS", "id": "<TBD-session-3>" },
-  //   { "binding": "PROFILES", "id": "<TBD-after-T1.1>" }
+  //   { "binding": "PROFILES", "id": "<TBD-after-T1.1>" },
+  //   { "binding": "LINKS",    "id": "<TBD-run-wrangler-kv-namespace-create-LINKS>" }
   // ],
   //
   // ─────────────────────────────────────────────────────────────────

@@ -24,13 +24,29 @@ documented in
 
 ## Routes (current)
 
-| Method | Path                       | Description                                     |
-|--------|----------------------------|-------------------------------------------------|
-| GET    | `/`                        | Service info + route inventory                  |
-| GET    | `/health`                  | Liveness probe                                  |
-| GET    | `/sepolia/block-height`    | Current ZKSync Era Sepolia block (live RPC)     |
-| GET    | `/sepolia/contracts`       | Vendored contract deployments                   |
-| POST   | `/v1/attester/test-sign`   | End-to-end smoke test of the attester binding   |
+| Method | Path                                                  | Description                                                |
+|--------|-------------------------------------------------------|------------------------------------------------------------|
+| GET    | `/`                                                   | Service info + route inventory                             |
+| GET    | `/health`                                             | Liveness probe                                             |
+| GET    | `/sepolia/block-height`                               | Current ZKSync Era Sepolia block (live RPC)                |
+| GET    | `/sepolia/contracts`                                  | Vendored contract deployments                              |
+| POST   | `/v1/attester/test-sign`                              | End-to-end smoke test of the attester binding              |
+| GET    | `/v1/enterprise/resolve?domain=`                      | Domain → global `companyRef` (+ DNS challenge, on-chain status) |
+| GET    | `/v1/enterprise/companies/:companyRef`                | On-chain registration status for a `companyRef`            |
+| POST   | `/v1/enterprise/links`                                | Issue / re-grant a `CompanyConsumerLink` †                 |
+| GET    | `/v1/enterprise/links?companyRef=`                    | List a company's links †                                   |
+| GET    | `/v1/enterprise/links/check?companyRef=&consumerId=`  | Route-guard check for a consumer †                         |
+| POST   | `/v1/enterprise/links/:companyRef/:consumerId/revoke` | Revoke a link †                                            |
+
+> † The `links/*` routes require the `LINKS` KV namespace; until it's
+> provisioned they return `503 link_store_unprovisioned` (see
+> [Provisioning](#provisioning)). `resolve` works with no storage —
+> `companyRef = keccak256("cofferdam-company-v1" || canonicalDomain)` is a
+> pure function of the verified domain (`ENTERPRISE_MODULE_PLAN.md` rev-7.4).
+>
+> **Security (α):** link issuance/revocation are **not yet authorized** —
+> `grantedByMemberRef`/`revokedBy` are trusted from the request body. Gate
+> behind an it_admin Polis session / company-Safe signature before staging.
 
 ## Local dev
 
@@ -58,6 +74,10 @@ curl -sX POST http://localhost:8787/v1/attester/test-sign \
   -H 'content-type: application/json' \
   -d '{"account":"0xfa4D920d5592289A1A0F73CA49D626EF8FE4D695"}' | jq '.onchainValid'
 # expect: true  (requires cofferdam-attester running with ATTESTER_PRIVATE_KEY set)
+
+# rev-7.4 company plane — domain → global companyRef (no storage needed):
+curl -s 'http://localhost:8787/v1/enterprise/resolve?domain=acme.com' | jq '{companyRef, registration}'
+# expect: deterministic companyRef + registration.status "registry_not_deployed"
 ```
 
 ## Deploy
@@ -71,6 +91,25 @@ CI will deploy automatically when a tag matching `v*` is pushed, gated by the
 `production` environment for manual approval. Set `CLOUDFLARE_API_TOKEN` as a
 repo secret with `Workers:Edit` + `Account:Read` scopes.
 
+## Provisioning
+
+The `/v1/enterprise/resolve` and `/companies/:companyRef` routes work with no
+extra resources. To light up the `CompanyConsumerLink` grant routes
+(`/v1/enterprise/links/*`), provision the `LINKS` KV namespace:
+
+```bash
+wrangler kv namespace create LINKS
+# Paste the returned id into the commented `kv_namespaces` block in
+# wrangler.jsonc and uncomment the LINKS line. env.ts already declares
+# `LINKS?: KVNamespace` (optional), so no code change is needed.
+```
+
+Until then the link routes return `503 link_store_unprovisioned`. On-chain
+registration lookups stay `registry_not_deployed` until
+`CofferdamCorporateRegistry` (rev-7.4 redeploy, `ENTERPRISE_MODULE_PLAN.md`
+§6.C) is vendored into `src/chain/deployments.ts` + `CORPORATE_REGISTRY_ADDRESS`
+in `src/services/company.ts`.
+
 ## Repository layout
 
 ```
@@ -83,11 +122,15 @@ src/
 ├── routes/
 │   ├── health.ts         GET /health
 │   ├── sepolia.ts        GET /sepolia/*
-│   └── attester.ts       POST /v1/attester/*
+│   ├── attester.ts       POST /v1/attester/*
+│   └── enterprise.ts     GET/POST /v1/enterprise/* (rev-7.4 company plane)
 └── services/
-    └── attester.ts       Local copy of @cofferdam/attester RPC contract
-                          (must stay in sync with that repo's src/rpc.ts;
-                          a future @cofferdam/types package will absorb)
+    ├── attester.ts       Local copy of @cofferdam/attester RPC contract
+    │                     (must stay in sync with that repo's src/rpc.ts;
+    │                     a future @cofferdam/types package will absorb)
+    ├── company.ts        companyRef derivation, domain canonicalization,
+    │                     DNS challenge, CofferdamCorporateRegistry reads
+    └── companyLinks.ts   CompanyConsumerLink types + KV-backed store
 ```
 
 ## Sibling repositories

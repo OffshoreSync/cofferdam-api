@@ -23,6 +23,14 @@ export interface Env {
   // ── KV namespaces (provisioned in later sessions) ───────────────
   // SESSIONS: KVNamespace;
   // PROFILES: KVNamespace;
+  /**
+   * CompanyConsumerLink grant store for the rev-7.4 company plane
+   * (routes/enterprise.ts). OPTIONAL until the KV namespace is provisioned
+   * + uncommented in wrangler.jsonc — the link routes return 503
+   * `link_store_unprovisioned` while it's absent, so the Worker still boots
+   * and the `/resolve` keystone works.
+   */
+  LINKS?: KVNamespace;
 
   // ── R2 buckets (provisioned in later sessions) ──────────────────
   // VAULT: R2Bucket;
