@@ -22,6 +22,16 @@ material, no private keys ever transit through this Worker. The trust model is
 documented in
 [cofferdam-sdk/IDENTITY_LAYER_DESIGN.md](https://github.com/OffshoreSync/cofferdam-sdk/blob/main/IDENTITY_LAYER_DESIGN.md).
 
+### Data boundaries — the plane never touches consumer data
+
+`cofferdam-api` is the **Cofferdam company plane**. Its stateful stores are
+**Neon Postgres** (Polis's dedicated SSO/SCIM DB), **Workers KV**, **R2**, and
+**ZKSync Era** on-chain. **It has no MongoDB** — MongoDB belongs solely to
+consumer apps (e.g. OffshoreSync's MERN stack). Wallet / Safe / treasury
+addresses live only here (Neon + on-chain) and are **never returned to a
+consumer**: the SDK exposes labels, roles, balances, and a `walletProvisioned`
+flag, not addresses. See `ENTERPRISE_MODULE_PLAN.md` §0 + §4.8.
+
 ## Routes (current)
 
 | Method | Path                                                  | Description                                                |
@@ -31,22 +41,36 @@ documented in
 | GET    | `/sepolia/block-height`                               | Current ZKSync Era Sepolia block (live RPC)                |
 | GET    | `/sepolia/contracts`                                  | Vendored contract deployments                              |
 | POST   | `/v1/attester/test-sign`                              | End-to-end smoke test of the attester binding              |
-| GET    | `/v1/enterprise/resolve?domain=`                      | Domain → global `companyRef` (+ DNS challenge, on-chain status) |
-| GET    | `/v1/enterprise/companies/:companyRef`                | On-chain registration status for a `companyRef`            |
+| GET    | `/v1/enterprise/resolve?domain=`                      | Domain → global `companyAnchor` (+ DNS challenge, on-chain status) |
+| GET    | `/v1/enterprise/companies/:companyAnchor`                | On-chain registration status for a `companyAnchor`            |
 | POST   | `/v1/enterprise/links`                                | Issue / re-grant a `CompanyConsumerLink` †                 |
-| GET    | `/v1/enterprise/links?companyRef=`                    | List a company's links †                                   |
-| GET    | `/v1/enterprise/links/check?companyRef=&consumerId=`  | Route-guard check for a consumer †                         |
-| POST   | `/v1/enterprise/links/:companyRef/:consumerId/revoke` | Revoke a link †                                            |
+| GET    | `/v1/enterprise/links?companyAnchor=`                    | List a company's links †                                   |
+| GET    | `/v1/enterprise/links/check?companyAnchor=&consumerId=`  | Route-guard check for a consumer †                         |
+| POST   | `/v1/enterprise/links/:companyAnchor/:consumerId/revoke` | Revoke a link †                                            |
 
 > † The `links/*` routes require the `LINKS` KV namespace; until it's
 > provisioned they return `503 link_store_unprovisioned` (see
 > [Provisioning](#provisioning)). `resolve` works with no storage —
-> `companyRef = keccak256("cofferdam-company-v1" || canonicalDomain)` is a
+> `companyAnchor = keccak256("cofferdam-company-v1" || canonicalDomain)` is a
 > pure function of the verified domain (`ENTERPRISE_MODULE_PLAN.md` rev-7.4).
 >
 > **Security (α):** link issuance/revocation are **not yet authorized** —
 > `grantedByMemberRef`/`revokedBy` are trusted from the request body. Gate
 > behind an it_admin Polis session / company-Safe signature before staging.
+
+> **Planned — Polis SSO broker (rev-7.5a, `ENTERPRISE_MODULE_PLAN.md` §2.6.1 + §5.4).**
+> `cofferdam-api` is the enterprise-SSO broker for the company plane. A future
+> `src/routes/sso.ts` adds `GET /v1/enterprise/sso/start|callback` (consume
+> self-hosted Ory Polis's OIDC and mint a one-time, signed SSO assertion), `POST
+> /v1/enterprise/sso/exchange` (server-to-server redemption — the consumer's SDK
+> swaps the opaque one-time code for the verified claims, then does its own
+> Mongo create-or-link + JWT), `POST /v1/enterprise/sso/connections` (forward to
+> the Polis admin API via `src/services/polis.ts`), and `POST
+> /v1/enterprise/scim/webhook` (HMAC-verified directory-sync ingest). Polis runs
+> as a separately self-hosted container (Apache-2.0) + Neon/Postgres — **never
+> embedded in this Worker**. Secrets (`POLIS_API_KEY`, `POLIS_WEBHOOK_SECRET`,
+> `STATE_SIGNING_KEY`, OIDC client creds) via `wrangler secret put`, typed in
+> `src/env.ts`.
 
 ## Local dev
 
@@ -75,9 +99,9 @@ curl -sX POST http://localhost:8787/v1/attester/test-sign \
   -d '{"account":"0xfa4D920d5592289A1A0F73CA49D626EF8FE4D695"}' | jq '.onchainValid'
 # expect: true  (requires cofferdam-attester running with ATTESTER_PRIVATE_KEY set)
 
-# rev-7.4 company plane — domain → global companyRef (no storage needed):
-curl -s 'http://localhost:8787/v1/enterprise/resolve?domain=acme.com' | jq '{companyRef, registration}'
-# expect: deterministic companyRef + registration.status "registry_not_deployed"
+# rev-7.4 company plane — domain → global companyAnchor (no storage needed):
+curl -s 'http://localhost:8787/v1/enterprise/resolve?domain=acme.com' | jq '{companyAnchor, registration}'
+# expect: deterministic companyAnchor + registration.status "registry_not_deployed"
 ```
 
 ## Deploy
@@ -93,7 +117,7 @@ repo secret with `Workers:Edit` + `Account:Read` scopes.
 
 ## Provisioning
 
-The `/v1/enterprise/resolve` and `/companies/:companyRef` routes work with no
+The `/v1/enterprise/resolve` and `/companies/:companyAnchor` routes work with no
 extra resources. To light up the `CompanyConsumerLink` grant routes
 (`/v1/enterprise/links/*`), provision the `LINKS` KV namespace:
 
@@ -128,7 +152,7 @@ src/
     ├── attester.ts       Local copy of @cofferdam/attester RPC contract
     │                     (must stay in sync with that repo's src/rpc.ts;
     │                     a future @cofferdam/types package will absorb)
-    ├── company.ts        companyRef derivation, domain canonicalization,
+    ├── company.ts        companyAnchor derivation, domain canonicalization,
     │                     DNS challenge, CofferdamCorporateRegistry reads
     └── companyLinks.ts   CompanyConsumerLink types + KV-backed store
 ```

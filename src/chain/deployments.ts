@@ -41,31 +41,31 @@ export const ZKSYNC_SEPOLIA_CHAIN_ID = 300 as const;
 export const SEPOLIA_DEPLOYMENTS = {
   /** Self.xyz vc-and-disclose Groth16 verifier. Already deployed 2026-05-16. */
   Verifier_vc_and_disclose: {
-    address: '0xf23537eF06fC1283F5be80676418b71aEd81b7E5',
+    address: '0xab4A3De2322d2c2e60531c71c158491a57C43910',
     txHash:
-      '0xad6add1a199752673612295dcc8fd351ac9c33054aa91945708168fdb551606e',
-    deployedAt: '2026-05-16T00:44:07.978Z',
-    deployer: '0xfa4D920d5592289A1A0F73CA49D626EF8FE4D695',
+      '0x45bb91768804ee4770c99b6f8ef41842f985cdd9da63c69486eb8d1272aa9b82',
+    deployedAt: '2026-06-06T00:26:42.809Z',
+    deployer: '0x2c8A01e971d7C51B3B78f9F08c57c45584D96AB2',
   },
   /**
    * v1 identity-binding contract (LayerZero-era + bare-passkey path).
    * The v2 NullifierRegistry will replace its role in the new identity
    * rail. Kept here so the API can surface both during the migration.
    */
-  OffshoreSyncReceiver: {
-    address: '0xa8F46B15F53D619584a00b91559e37233869ab5a',
+  CofferdamReceiver: {
+    address: '0x6b4D8580f72C1D3Eb9825aD6EE56c67ED0F1B9Bb',
     txHash:
-      '0x0872935c5d37d1e4a211b1941d84679848d4c323f1d46bd749287990c4278404',
-    deployedAt: '2026-05-23T23:06:07.075Z',
-    deployer: '0xfa4D920d5592289A1A0F73CA49D626EF8FE4D695',
+      '0x4cad22db7ae3a685979d82218403a165a56b97b58977bb4116dc2da0db22ed3a',
+    deployedAt: '2026-06-06T00:28:20.532Z',
+    deployer: '0x2c8A01e971d7C51B3B78f9F08c57c45584D96AB2',
   },
   /** Escrow contract — paid maritime contracts. */
-  OffshoreSyncEscrow: {
-    address: '0x22281d75CF1d34421e5Fc58625885b46dC309723',
+  CofferdamSpotEscrow: {
+    address: '0x2F22FE817dAA3Bff101f888C94F3ce0814880535',
     txHash:
-      '0x4edc59dc61740f921208dd66f589f7b7f4386e7c54e675b806d9ee537aa08695',
-    deployedAt: '2026-05-23T23:06:07.075Z',
-    deployer: '0xfa4D920d5592289A1A0F73CA49D626EF8FE4D695',
+      '0x1e72978b96061434d37397e66bf41945e6b7a2c7e44ab387f5fcabfa804a6b38',
+    deployedAt: '2026-06-06T00:28:20.532Z',
+    deployer: '0x2c8A01e971d7C51B3B78f9F08c57c45584D96AB2',
   },
   /**
    * v2 — allow-list of trusted Self TEE attester ECDSA addresses.
@@ -74,11 +74,11 @@ export const SEPOLIA_DEPLOYMENTS = {
    * `cofferdam-attester`.
    */
   SelfAttesterRegistry: {
-    address: '0x723879D9bF2F3d63cEB295F22Cb9382a62c89D6e',
+    address: '0x2eC27Ab96A6948e20Cc954Cb900723D169e3eFe9',
     txHash:
-      '0xfdf6b503a4a3e996fde55a16afd24f59aaf50b23f466d988c6b4779950bd3b18',
-    deployedAt: '2026-05-31T00:44:11.407Z',
-    deployer: '0xfa4D920d5592289A1A0F73CA49D626EF8FE4D695',
+      '0x8998ce71bbef8fea9d2db0030c1048587d4a7ee0182aef6767af6a4ac0180f8b',
+    deployedAt: '2026-06-06T00:29:13.558Z',
+    deployer: '0x2c8A01e971d7C51B3B78f9F08c57c45584D96AB2',
   },
   /**
    * v2 — one-shot Self.xyz nullifier ↔ account binding. Wired to the
@@ -88,11 +88,11 @@ export const SEPOLIA_DEPLOYMENTS = {
    * Poseidon of endpoint=`cofferdam.xyz` × scope=`cofferdam-sepolia`).
    */
   NullifierRegistry: {
-    address: '0x49b1E58fAdfA287Ed59299DC14D298b8fdf3d3ba',
+    address: '0x8b26DE05470961DE31691bCBdE3de8A3572F8AdC',
     txHash:
-      '0x7a18939eb188a75d3568c3838af83b7f940d37d52e539770397d5ddb1f591138',
-    deployedAt: '2026-05-31T00:44:11.407Z',
-    deployer: '0xfa4D920d5592289A1A0F73CA49D626EF8FE4D695',
+      '0x290e1f6bd41a56dcfcab6e2cdb48902fb4e1c853ed07b7358ea508f34b9613f1',
+    deployedAt: '2026-06-06T00:29:13.558Z',
+    deployer: '0x2c8A01e971d7C51B3B78f9F08c57c45584D96AB2',
   },
 } as const satisfies Record<string, ContractDeployment>;
 

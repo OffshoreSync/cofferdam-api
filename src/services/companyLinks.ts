@@ -8,21 +8,21 @@
  * This is the one record that lives in the SHARED Cofferdam company plane
  * (this Worker), NOT in any per-consumer database. A consumer (OffshoreSync
  * maritime, a construction vertical, or cofferdam.xyz/enterprise) requests a
- * scoped link to a company's global `companyRef`; the company's it_admin
+ * scoped link to a company's global `companyAnchor`; the company's it_admin
  * authorises it. Per-consumer apps keep a read-cached mirror for their own
  * route guards.
  *
  * Storage: Cloudflare KV. Key layout makes the §4.11 uniqueness constraint
- * (one ACTIVE link per (companyRef, consumerId)) a direct get/put, and
+ * (one ACTIVE link per (companyAnchor, consumerId)) a direct get/put, and
  * "list a company's links" a prefix scan:
  *
- *   link:<companyRef>:<consumerId>   → CompanyConsumerLink (JSON)
+ *   link:<companyAnchor>:<consumerId>   → CompanyConsumerLink (JSON)
  *
  * Listing by `consumerId` alone would need a secondary index (or D1) — out
  * of scope for this scaffold; noted in the route handler.
  */
 
-import type { CompanyRef } from './company.js';
+import type { CompanyAnchor } from './company.js';
 
 // ── Grant vocabulary (mirrors §4.11) ───────────────────────────────────
 
@@ -51,7 +51,7 @@ export const LINK_SCOPES: readonly LinkScope[] = [
 export type InitiatedVia = 'consumer_claim' | 'dashboard_install';
 
 export interface CompanyConsumerLink {
-  companyRef: CompanyRef; // global join key (§4.1)
+  companyAnchor: CompanyAnchor; // global join key (§4.1)
   canonicalDomain: string; // the verified handle, for display
   consumerId: string; // 'offshoresync' | 'cofferdam-enterprise' | 'acme-construction' | …
   vertical: string; // 'maritime' | 'construction' | 'medical_staffing' | …
@@ -79,21 +79,21 @@ export function areValidScopes(scopes: unknown): scopes is LinkScope[] {
 export class CompanyLinkStore {
   constructor(private readonly kv: KVNamespace) {}
 
-  private key(companyRef: CompanyRef, consumerId: string): string {
-    return `link:${companyRef.toLowerCase()}:${consumerId}`;
+  private key(companyAnchor: CompanyAnchor, consumerId: string): string {
+    return `link:${companyAnchor.toLowerCase()}:${consumerId}`;
   }
 
-  async get(companyRef: CompanyRef, consumerId: string): Promise<CompanyConsumerLink | null> {
-    return this.kv.get<CompanyConsumerLink>(this.key(companyRef, consumerId), 'json');
+  async get(companyAnchor: CompanyAnchor, consumerId: string): Promise<CompanyConsumerLink | null> {
+    return this.kv.get<CompanyConsumerLink>(this.key(companyAnchor, consumerId), 'json');
   }
 
   async put(link: CompanyConsumerLink): Promise<void> {
-    await this.kv.put(this.key(link.companyRef, link.consumerId), JSON.stringify(link));
+    await this.kv.put(this.key(link.companyAnchor, link.consumerId), JSON.stringify(link));
   }
 
   /** All links for a company (active + historical), via prefix scan. */
-  async listByCompany(companyRef: CompanyRef): Promise<CompanyConsumerLink[]> {
-    const prefix = `link:${companyRef.toLowerCase()}:`;
+  async listByCompany(companyAnchor: CompanyAnchor): Promise<CompanyConsumerLink[]> {
+    const prefix = `link:${companyAnchor.toLowerCase()}:`;
     const out: CompanyConsumerLink[] = [];
     let cursor: string | undefined;
     do {

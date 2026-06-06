@@ -5,14 +5,14 @@
  * /v1/enterprise routes — the shared Cofferdam company-plane resolver +
  * grant API (ENTERPRISE_MODULE_PLAN.md rev-7.4 §3 + §4.11).
  *
- *   GET  /v1/enterprise/resolve?domain=<d>                  domain → global companyRef (+ DNS challenge, on-chain status)
- *   GET  /v1/enterprise/companies/:companyRef               on-chain registration status for a companyRef
+ *   GET  /v1/enterprise/resolve?domain=<d>                  domain → global companyAnchor (+ DNS challenge, on-chain status)
+ *   GET  /v1/enterprise/companies/:companyAnchor               on-chain registration status for a companyAnchor
  *   POST /v1/enterprise/links                               issue/re-grant a CompanyConsumerLink (scoped vertical→company)
- *   GET  /v1/enterprise/links?companyRef|domain=<…>         list a company's links
- *   GET  /v1/enterprise/links/check?companyRef|domain&consumerId[&scope]  route-guard check for a consumer
- *   POST /v1/enterprise/links/:companyRef/:consumerId/revoke   revoke a link
+ *   GET  /v1/enterprise/links?companyAnchor|domain=<…>         list a company's links
+ *   GET  /v1/enterprise/links/check?companyAnchor|domain&consumerId[&scope]  route-guard check for a consumer
+ *   POST /v1/enterprise/links/:companyAnchor/:consumerId/revoke   revoke a link
  *
- * MATURITY (α): `resolve` is fully live — `companyRef` is a pure function of
+ * MATURITY (α): `resolve` is fully live — `companyAnchor` is a pure function of
  * the domain. On-chain registration degrades to `registry_not_deployed`
  * until `CofferdamCorporateRegistry` is vendored (services/company.ts). The
  * link endpoints require the `LINKS` KV namespace; until it's provisioned
@@ -33,11 +33,11 @@ import {
   CORPORATE_REGISTRY_ADDRESS,
   DNS_CHALLENGE_VALUE_PREFIX,
   canonicalizeDomain,
-  deriveCompanyRef,
+  deriveCompanyAnchor,
   dnsChallengeRecordName,
-  isCompanyRef,
+  isCompanyAnchor,
   readCompanyRegistration,
-  type CompanyRef,
+  type CompanyAnchor,
 } from '../services/company.js';
 import {
   CompanyLinkStore,
@@ -59,39 +59,39 @@ type RegistrationResult =
 /** Read on-chain registration, degrading gracefully if the registry is undeployed or RPC fails. */
 async function registrationFor(
   c: Context<{ Bindings: Env }>,
-  companyRef: CompanyRef,
+  companyAnchor: CompanyAnchor,
 ): Promise<RegistrationResult> {
   if (!CORPORATE_REGISTRY_ADDRESS) return { status: 'registry_not_deployed' };
   try {
     const client = getSepoliaClient(c.env.ZKSYNC_SEPOLIA_RPC_URL);
-    return await readCompanyRegistration(client, companyRef);
+    return await readCompanyRegistration(client, companyAnchor);
   } catch (err) {
     return { status: 'rpc_error', message: err instanceof Error ? err.message : String(err) };
   }
 }
 
-/** Resolve a `companyRef` from either a `companyRef` or a `domain` value. */
+/** Resolve a `companyAnchor` from either a `companyAnchor` or a `domain` value. */
 function refFromInput(input: {
-  companyRef?: unknown;
+  companyAnchor?: unknown;
   domain?: unknown;
-}): { companyRef: CompanyRef; canonicalDomain: string | null } | { error: string; hint: string } {
+}): { companyAnchor: CompanyAnchor; canonicalDomain: string | null } | { error: string; hint: string } {
   if (typeof input.domain === 'string' && input.domain.length > 0) {
     const canonicalDomain = canonicalizeDomain(input.domain);
     if (!canonicalDomain) return { error: 'bad_domain', hint: 'not a valid domain' };
-    const derived = deriveCompanyRef(canonicalDomain);
-    if (isCompanyRef(input.companyRef) && input.companyRef.toLowerCase() !== derived.toLowerCase()) {
-      return { error: 'ref_domain_mismatch', hint: 'companyRef does not derive from domain' };
+    const derived = deriveCompanyAnchor(canonicalDomain);
+    if (isCompanyAnchor(input.companyAnchor) && input.companyAnchor.toLowerCase() !== derived.toLowerCase()) {
+      return { error: 'anchor_domain_mismatch', hint: 'companyAnchor does not derive from domain' };
     }
-    return { companyRef: derived, canonicalDomain };
+    return { companyAnchor: derived, canonicalDomain };
   }
-  if (isCompanyRef(input.companyRef)) {
-    return { companyRef: input.companyRef.toLowerCase() as CompanyRef, canonicalDomain: null };
+  if (isCompanyAnchor(input.companyAnchor)) {
+    return { companyAnchor: input.companyAnchor.toLowerCase() as CompanyAnchor, canonicalDomain: null };
   }
-  return { error: 'missing_identifier', hint: 'provide `domain` or a 32-byte `companyRef`' };
+  return { error: 'missing_identifier', hint: 'provide `domain` or a 32-byte `companyAnchor`' };
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// GET /resolve — the keystone. domain → global companyRef.
+// GET /resolve — the keystone. domain → global companyAnchor.
 // ─────────────────────────────────────────────────────────────────────
 
 enterpriseRoutes.get('/resolve', async (c) => {
@@ -104,13 +104,13 @@ enterpriseRoutes.get('/resolve', async (c) => {
     return c.json({ ok: false, error: 'bad_domain', hint: 'not a valid domain', input: raw }, 400);
   }
 
-  const companyRef = deriveCompanyRef(canonicalDomain);
-  const registration = await registrationFor(c, companyRef);
+  const companyAnchor = deriveCompanyAnchor(canonicalDomain);
+  const registration = await registrationFor(c, companyAnchor);
 
   return c.json({
     ok: true,
     domain: canonicalDomain,
-    companyRef,
+    companyAnchor,
     dnsChallenge: {
       recordName: dnsChallengeRecordName(canonicalDomain),
       recordType: 'TXT',
@@ -121,19 +121,19 @@ enterpriseRoutes.get('/resolve', async (c) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// GET /companies/:companyRef — on-chain registration status.
+// GET /companies/:companyAnchor — on-chain registration status.
 // ─────────────────────────────────────────────────────────────────────
 
-enterpriseRoutes.get('/companies/:companyRef', async (c) => {
-  const companyRef = c.req.param('companyRef');
-  if (!isCompanyRef(companyRef)) {
-    return c.json({ ok: false, error: 'bad_company_ref', hint: 'expected 0x + 64 hex chars' }, 400);
+enterpriseRoutes.get('/companies/:companyAnchor', async (c) => {
+  const companyAnchor = c.req.param('companyAnchor');
+  if (!isCompanyAnchor(companyAnchor)) {
+    return c.json({ ok: false, error: 'bad_company_anchor', hint: 'expected 0x + 64 hex chars' }, 400);
   }
-  const registration = await registrationFor(c, companyRef.toLowerCase() as CompanyRef);
+  const registration = await registrationFor(c, companyAnchor.toLowerCase() as CompanyAnchor);
   return c.json({
     ok: true,
     chainId: ZKSYNC_SEPOLIA_CHAIN_ID,
-    companyRef: companyRef.toLowerCase(),
+    companyAnchor: companyAnchor.toLowerCase(),
     registration,
   });
 });
@@ -155,7 +155,7 @@ const STORE_UNPROVISIONED = {
 
 interface CreateLinkBody {
   domain?: unknown;
-  companyRef?: unknown;
+  companyAnchor?: unknown;
   consumerId?: unknown;
   vertical?: unknown;
   scopes?: unknown;
@@ -178,9 +178,9 @@ enterpriseRoutes.post('/links', async (c) => {
   if (typeof body.domain !== 'string' || body.domain.length === 0) {
     return c.json({ ok: false, error: 'missing_domain', hint: '`domain` is required to create a link' }, 400);
   }
-  const ref = refFromInput({ domain: body.domain, companyRef: body.companyRef });
+  const ref = refFromInput({ domain: body.domain, companyAnchor: body.companyAnchor });
   if ('error' in ref) return c.json({ ok: false, ...ref }, 400);
-  const { companyRef, canonicalDomain } = ref;
+  const { companyAnchor, canonicalDomain } = ref;
   if (!canonicalDomain) {
     return c.json({ ok: false, error: 'bad_domain' }, 400);
   }
@@ -200,13 +200,13 @@ enterpriseRoutes.post('/links', async (c) => {
   const grantedByMemberRef =
     typeof body.grantedByMemberRef === 'string' ? body.grantedByMemberRef : null;
 
-  // Upsert: re-granting reuses the (companyRef, consumerId) slot. NOTE: §4.11
+  // Upsert: re-granting reuses the (companyAnchor, consumerId) slot. NOTE: §4.11
   // wants a NEW row per re-grant for full history; preserving that needs an
   // append log (D1) — tracked as a follow-up. Here we keep createdAt stable.
   const now = new Date().toISOString();
-  const existing = await store.get(companyRef, body.consumerId);
+  const existing = await store.get(companyAnchor, body.consumerId);
   const link: CompanyConsumerLink = {
-    companyRef,
+    companyAnchor,
     canonicalDomain,
     consumerId: body.consumerId,
     vertical: body.vertical,
@@ -229,11 +229,11 @@ enterpriseRoutes.get('/links', async (c) => {
   const store = linkStore(c);
   if (!store) return c.json(STORE_UNPROVISIONED, 503);
 
-  const ref = refFromInput({ companyRef: c.req.query('companyRef'), domain: c.req.query('domain') });
+  const ref = refFromInput({ companyAnchor: c.req.query('companyAnchor'), domain: c.req.query('domain') });
   if ('error' in ref) return c.json({ ok: false, ...ref }, 400);
 
-  const links = await store.listByCompany(ref.companyRef);
-  return c.json({ ok: true, companyRef: ref.companyRef, count: links.length, links });
+  const links = await store.listByCompany(ref.companyAnchor);
+  return c.json({ ok: true, companyAnchor: ref.companyAnchor, count: links.length, links });
 });
 
 enterpriseRoutes.get('/links/check', async (c) => {
@@ -244,15 +244,15 @@ enterpriseRoutes.get('/links/check', async (c) => {
   if (!consumerId) {
     return c.json({ ok: false, error: 'missing_consumer_id' }, 400);
   }
-  const ref = refFromInput({ companyRef: c.req.query('companyRef'), domain: c.req.query('domain') });
+  const ref = refFromInput({ companyAnchor: c.req.query('companyAnchor'), domain: c.req.query('domain') });
   if ('error' in ref) return c.json({ ok: false, ...ref }, 400);
 
-  const link = await store.get(ref.companyRef, consumerId);
+  const link = await store.get(ref.companyAnchor, consumerId);
   const active = link?.status === 'active';
   const scope = c.req.query('scope');
   return c.json({
     ok: true,
-    companyRef: ref.companyRef,
+    companyAnchor: ref.companyAnchor,
     consumerId,
     linked: link !== null,
     active,
@@ -266,17 +266,17 @@ interface RevokeBody {
   revokedBy?: unknown;
 }
 
-enterpriseRoutes.post('/links/:companyRef/:consumerId/revoke', async (c) => {
+enterpriseRoutes.post('/links/:companyAnchor/:consumerId/revoke', async (c) => {
   const store = linkStore(c);
   if (!store) return c.json(STORE_UNPROVISIONED, 503);
 
-  const companyRef = c.req.param('companyRef');
+  const companyAnchor = c.req.param('companyAnchor');
   const consumerId = c.req.param('consumerId');
-  if (!isCompanyRef(companyRef)) {
-    return c.json({ ok: false, error: 'bad_company_ref', hint: 'expected 0x + 64 hex chars' }, 400);
+  if (!isCompanyAnchor(companyAnchor)) {
+    return c.json({ ok: false, error: 'bad_company_anchor', hint: 'expected 0x + 64 hex chars' }, 400);
   }
 
-  const link = await store.get(companyRef.toLowerCase() as CompanyRef, consumerId);
+  const link = await store.get(companyAnchor.toLowerCase() as CompanyAnchor, consumerId);
   if (!link) {
     return c.json({ ok: false, error: 'link_not_found' }, 404);
   }

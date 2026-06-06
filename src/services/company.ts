@@ -6,10 +6,10 @@
  * primitives for the Cofferdam enterprise module (ENTERPRISE_MODULE_PLAN.md
  * rev-7.4, §3 "thin shared company plane" + §4.1 + §6.C).
  *
- * The keystone is `deriveCompanyRef`: a company's GLOBAL, immutable
- * `companyRef` is a PURE FUNCTION of its verified canonical domain. No
+ * The keystone is `deriveCompanyAnchor`: a company's GLOBAL, immutable
+ * `companyAnchor` is a PURE FUNCTION of its verified canonical domain. No
  * storage, no network — every consumer/vertical that resolves the same
- * domain computes the same `companyRef`, which is the cross-consumer join
+ * domain computes the same `companyAnchor`, which is the cross-consumer join
  * key used on-chain in `CofferdamCorporateRegistry` and in the
  * `CompanyConsumerLink` grant (§4.11).
  *
@@ -17,7 +17,7 @@
  * the future `CofferdamCorporateRegistry.registerCompany` Solidity, and the
  * SDK):
  *
- *   companyRef = keccak256( utf8("cofferdam-company-v1") || utf8(canonicalDomain) )
+ *   companyAnchor = keccak256( utf8("cofferdam-company-v1") || utf8(canonicalDomain) )
  *              = keccak256( abi.encodePacked("cofferdam-company-v1", canonicalDomain) )   // Solidity mirror
  *
  * The version tag is a fixed prefix, so concatenation is unambiguous (no
@@ -29,26 +29,26 @@ import { keccak256, toBytes, type Address, type Hex } from 'viem';
 import type { SepoliaClient } from '../chain/client.js';
 
 // ─────────────────────────────────────────────────────────────────────
-// companyRef derivation
+// companyAnchor derivation
 // ─────────────────────────────────────────────────────────────────────
 
-/** Domain-separation tag baked into every `companyRef`. NEVER change without a registry migration. */
-export const COMPANY_REF_TAG = 'cofferdam-company-v1';
+/** Domain-separation tag baked into every `companyAnchor`. NEVER change without a registry migration. */
+export const COMPANY_ANCHOR_TAG = 'cofferdam-company-v1';
 
-/** A 32-byte `companyRef`, lowercase 0x-hex. */
-export type CompanyRef = Hex;
+/** A 32-byte `companyAnchor`, lowercase 0x-hex. */
+export type CompanyAnchor = Hex;
 
 /**
- * Derive the global, immutable `companyRef` from an ALREADY-CANONICAL
+ * Derive the global, immutable `companyAnchor` from an ALREADY-CANONICAL
  * domain (run `canonicalizeDomain` first). Pure + deterministic.
  */
-export function deriveCompanyRef(canonicalDomain: string): CompanyRef {
+export function deriveCompanyAnchor(canonicalDomain: string): CompanyAnchor {
   // `toBytes` is UTF-8; string concat then encode == encode(tag) || encode(domain).
-  return keccak256(toBytes(COMPANY_REF_TAG + canonicalDomain));
+  return keccak256(toBytes(COMPANY_ANCHOR_TAG + canonicalDomain));
 }
 
-/** True iff `x` is a syntactically valid 32-byte 0x-hex `companyRef`. */
-export function isCompanyRef(x: unknown): x is CompanyRef {
+/** True iff `x` is a syntactically valid 32-byte 0x-hex `companyAnchor`. */
+export function isCompanyAnchor(x: unknown): x is CompanyAnchor {
   return typeof x === 'string' && /^0x[0-9a-fA-F]{64}$/.test(x);
 }
 
@@ -58,7 +58,7 @@ export function isCompanyRef(x: unknown): x is CompanyRef {
 
 /**
  * Reduce arbitrary user input to the canonical apex/host form used for the
- * `companyRef` preimage, or `null` if it isn't a plausible domain.
+ * `companyAnchor` preimage, or `null` if it isn't a plausible domain.
  *
  * Rules: lowercase, trim, strip scheme/path/query/fragment/port and a
  * trailing root dot, require ≥ 2 labels, validate label charset + lengths,
@@ -141,14 +141,14 @@ export const CORPORATE_REGISTRY_ABI = [
     type: 'function',
     name: 'companyWallet',
     stateMutability: 'view',
-    inputs: [{ name: 'companyRef', type: 'bytes32' }],
+    inputs: [{ name: 'companyAnchor', type: 'bytes32' }],
     outputs: [{ type: 'address' }],
   },
   {
     type: 'function',
     name: 'orgRoots',
     stateMutability: 'view',
-    inputs: [{ name: 'companyRef', type: 'bytes32' }],
+    inputs: [{ name: 'companyAnchor', type: 'bytes32' }],
     outputs: [
       { name: 'root', type: 'bytes32' },
       { name: 'generation', type: 'uint64' },
@@ -160,7 +160,7 @@ export const CORPORATE_REGISTRY_ABI = [
 ] as const;
 
 export interface CompanyRegistration {
-  /** True iff a main Safe (companyWallet) is registered for this companyRef. */
+  /** True iff a main Safe (companyWallet) is registered for this companyAnchor. */
   registered: boolean;
   /** The company's main Safe address, or `null` if unregistered. */
   companyWallet: Address | null;
@@ -169,13 +169,13 @@ export interface CompanyRegistration {
 }
 
 /**
- * Read whether a `companyRef` is registered on-chain and its current org
+ * Read whether a `companyAnchor` is registered on-chain and its current org
  * generation. Returns `null` when the registry isn't deployed yet (caller
  * should surface `registry_not_deployed`).
  */
 export async function readCompanyRegistration(
   client: SepoliaClient,
-  companyRef: CompanyRef,
+  companyAnchor: CompanyAnchor,
 ): Promise<CompanyRegistration | null> {
   if (!CORPORATE_REGISTRY_ADDRESS) return null;
 
@@ -183,7 +183,7 @@ export async function readCompanyRegistration(
     address: CORPORATE_REGISTRY_ADDRESS,
     abi: CORPORATE_REGISTRY_ABI,
     functionName: 'companyWallet',
-    args: [companyRef],
+    args: [companyAnchor],
   })) as Address;
 
   const registered = wallet.toLowerCase() !== ZERO_ADDRESS;
@@ -195,7 +195,7 @@ export async function readCompanyRegistration(
     address: CORPORATE_REGISTRY_ADDRESS,
     abi: CORPORATE_REGISTRY_ABI,
     functionName: 'orgRoots',
-    args: [companyRef],
+    args: [companyAnchor],
   })) as readonly [Hex, bigint, Address, bigint, Hex];
 
   return {
