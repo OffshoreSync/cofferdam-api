@@ -20,6 +20,7 @@ import { attesterRoutes } from './routes/attester.js';
 import { enterpriseRoutes } from './routes/enterprise.js';
 import { healthRoutes } from './routes/health.js';
 import { sepoliaRoutes } from './routes/sepolia.js';
+import { sessionRoutes } from './routes/session.js';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -55,6 +56,7 @@ app.get('/', (c) => {
       { method: 'GET', path: '/v1/enterprise/links/check?companyAnchor=&consumerId=' },
       { method: 'POST', path: '/v1/enterprise/links/:companyAnchor/:consumerId/revoke' },
       { method: 'POST', path: '/v1/attester/test-sign' },
+      { method: 'POST', path: '/v1/session/verify-attestation' },
     ],
     docs: 'See cofferdam-app/backend/README.md',
   });
@@ -65,6 +67,7 @@ app.route('/health', healthRoutes);
 app.route('/sepolia', sepoliaRoutes);
 app.route('/v1/attester', attesterRoutes);
 app.route('/v1/enterprise', enterpriseRoutes);
+app.route('/v1/session', sessionRoutes);
 
 // ── 404 ────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ ok: false, error: 'not_found' }, 404));

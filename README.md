@@ -41,6 +41,7 @@ flag, not addresses. See `ENTERPRISE_MODULE_PLAN.md` §0 + §4.8.
 | GET    | `/sepolia/block-height`                               | Current ZKSync Era Sepolia block (live RPC)                |
 | GET    | `/sepolia/contracts`                                  | Vendored contract deployments                              |
 | POST   | `/v1/attester/test-sign`                              | End-to-end smoke test of the attester binding              |
+| POST   | `/v1/session/verify-attestation`                      | Verify a `SignInResponse.attestation` (`csa1:`) token ‡    |
 | GET    | `/v1/enterprise/resolve?domain=`                      | Domain → global `companyAnchor` (+ DNS challenge, on-chain status) |
 | GET    | `/v1/enterprise/companies/:companyAnchor`                | On-chain registration status for a `companyAnchor`            |
 | POST   | `/v1/enterprise/links`                                | Issue / re-grant a `CompanyConsumerLink` †                 |
@@ -57,6 +58,28 @@ flag, not addresses. See `ENTERPRISE_MODULE_PLAN.md` §0 + §4.8.
 > **Security (α):** link issuance/revocation are **not yet authorized** —
 > `grantedByMemberRef`/`revokedBy` are trusted from the request body. Gate
 > behind an it_admin Polis session / company-Safe signature before staging.
+
+> ‡ `POST /v1/session/verify-attestation` is the relying-party verifier for the
+> passkey-signed envelope `@cofferdam/sdk`'s `NativeAccountProvider.signIn()`
+> returns as `SignInResponse.attestation`. Body:
+> `{ attestation: "csa1:…", expect?: { scope?, appPseudonym?, accountAddress?, chainId? }, maxAgeMs?, checkOnChain? }`.
+> It decodes the token, verifies the P-256 / WebAuthn signature over the
+> committed sign-in fields, applies the optional `expect` field-pins and
+> `maxAgeMs` freshness bound, and — with `checkOnChain: true` — confirms the
+> signing public key is an **active authority** on the AA account (ZKSync
+> Sepolia only; a not-yet-deployed account returns `authority: 'account_not_deployed'`,
+> which is expected before the user's first on-chain op and does not invalidate
+> the attestation). The verifier (`services/sessionAttestation.ts`) is a
+> Workers-native `viem` + `@noble/curves` re-implementation kept **byte-compatible**
+> with the SDK's `ethers` codec — same `csa1:` format and digest preimage.
+
+```bash
+# verify a session attestation (signature only):
+curl -sX POST http://localhost:8787/v1/session/verify-attestation \
+  -H 'content-type: application/json' \
+  -d '{"attestation":"csa1:…","expect":{"scope":"offshoresync"}}' | jq '{ok, claims}'
+# add "checkOnChain": true to also confirm the passkey is an active on-chain authority.
+```
 
 > **Planned — Polis SSO broker (rev-7.5a, `ENTERPRISE_MODULE_PLAN.md` §2.6.1 + §5.4).**
 > `cofferdam-api` is the enterprise-SSO broker for the company plane. A future
@@ -115,6 +138,33 @@ CI will deploy automatically when a tag matching `v*` is pushed, gated by the
 `production` environment for manual approval. Set `CLOUDFLARE_API_TOKEN` as a
 repo secret with `Workers:Edit` + `Account:Read` scopes.
 
+## Testing
+
+```bash
+yarn test        # Vitest, single run
+yarn test:watch  # watch mode
+```
+
+The session-attestation suite (`test/sessionAttestation.test.ts`) is a
+**cross-repo regression guard**: it verifies real `@cofferdam/sdk`-signed
+`csa1:` tokens (`test/fixtures/sdk-attestations.json`) against this Worker's
+`viem` + `@noble/curves` verifier and the Hono route, for **both** signature
+schemes (`p256` and `webauthn`). Because the SDK signs with `ethers` and this
+Worker verifies with `viem`/`@noble`, the fixtures pin the two implementations
+together — any divergence in the `csa1:` format or digest preimage fails the
+suite.
+
+The fixtures are committed (deterministic, no secrets — only public keys +
+signatures over public test fields). Regenerate them after any wire-format
+change from the **cofferdam-sdk** repo:
+
+```bash
+cd ../cofferdam-sdk
+yarn build
+node packages/core/scripts/gen-attestation-fixtures.mjs
+# writes ../cofferdam-api/test/fixtures/sdk-attestations.json directly.
+```
+
 ## Provisioning
 
 The `/v1/enterprise/resolve` and `/companies/:companyAnchor` routes work with no
@@ -147,14 +197,22 @@ src/
 │   ├── health.ts         GET /health
 │   ├── sepolia.ts        GET /sepolia/*
 │   ├── attester.ts       POST /v1/attester/*
+│   ├── session.ts        POST /v1/session/verify-attestation
 │   └── enterprise.ts     GET/POST /v1/enterprise/* (rev-7.4 company plane)
 └── services/
     ├── attester.ts       Local copy of @cofferdam/attester RPC contract
     │                     (must stay in sync with that repo's src/rpc.ts;
     │                     a future @cofferdam/types package will absorb)
+    ├── sessionAttestation.ts  csa1: verifier — byte-compatible (viem + @noble)
+    │                     re-impl of @cofferdam/sdk's sessionAttestation.ts
     ├── company.ts        companyAnchor derivation, domain canonicalization,
     │                     DNS challenge, CofferdamCorporateRegistry reads
     └── companyLinks.ts   CompanyConsumerLink types + KV-backed store
+
+test/
+├── sessionAttestation.test.ts   Cross-repo verifier suite (Vitest)
+└── fixtures/
+    └── sdk-attestations.json     Real @cofferdam/sdk-signed csa1: tokens
 ```
 
 ## Sibling repositories
