@@ -16,6 +16,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env } from './env.js';
+import { activityRoutes } from './routes/activity.js';
 import { attesterRoutes } from './routes/attester.js';
 import { enterpriseRoutes } from './routes/enterprise.js';
 import { healthRoutes } from './routes/health.js';
@@ -55,6 +56,7 @@ app.get('/', (c) => {
       { method: 'GET', path: '/v1/enterprise/links?companyAnchor=' },
       { method: 'GET', path: '/v1/enterprise/links/check?companyAnchor=&consumerId=' },
       { method: 'POST', path: '/v1/enterprise/links/:companyAnchor/:consumerId/revoke' },
+      { method: 'GET', path: '/v1/activity?address=' },
       { method: 'POST', path: '/v1/attester/test-sign' },
       { method: 'POST', path: '/v1/session/verify-attestation' },
     ],
@@ -67,6 +69,7 @@ app.route('/health', healthRoutes);
 app.route('/sepolia', sepoliaRoutes);
 app.route('/v1/attester', attesterRoutes);
 app.route('/v1/enterprise', enterpriseRoutes);
+app.route('/v1/activity', activityRoutes);
 app.route('/v1/session', sessionRoutes);
 
 // ── 404 ────────────────────────────────────────────────────────────

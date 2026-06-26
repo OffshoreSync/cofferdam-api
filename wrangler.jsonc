@@ -27,9 +27,20 @@
   "workers_dev": true,
 
   // Variables — non-secret. Secrets live in `wrangler secret put`.
+  //
+  // Neon Postgres — `polis` DB only (ENTERPRISE_MODULE_PLAN.md §3, decision
+  // 2026-06-26). Secret, set with:
+  //   wrangler secret put POLIS_DATABASE_URL      # `polis` DB (enterprise identity)
+  // Use Neon's POOLED HTTP endpoint URL (the Worker reads via
+  // `@neondatabase/serverless`). Until set, DB-backed routes return 503
+  // `db_unprovisioned` (env.ts declares it as optional).
+  // ACTIVITY_DATABASE_URL is retained as optional future fallback but is NOT
+  // required — `/v1/activity` uses the SQD Portal Stream API directly.
   "vars": {
     "ENVIRONMENT": "development",
-    "ZKSYNC_SEPOLIA_RPC_URL": "https://sepolia.era.zksync.dev"
+    "ZKSYNC_SEPOLIA_RPC_URL": "https://sepolia.era.zksync.dev",
+    "BASE_SEPOLIA_RPC_URL": "https://sepolia.base.org",
+    "SQD_PORTAL_URL": "https://portal.sqd.dev/datasets/base-sepolia"
   },
 
   // ─────────────────────────────────────────────────────────────────

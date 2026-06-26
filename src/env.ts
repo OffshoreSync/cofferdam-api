@@ -17,8 +17,34 @@ export interface Env {
   ENVIRONMENT: 'development' | 'staging' | 'production';
   ZKSYNC_SEPOLIA_RPC_URL: string;
 
+  /**
+   * SQD Portal Stream API base URL for the /v1/activity route.
+   * Defaults to the free public endpoint (20 req/10s rate limit).
+   * Override with a Cloud Portal URL for production (higher rate limits).
+   * See ENTERPRISE_MODULE_PLAN.md §3 (decision 2026-06-26).
+   */
+  SQD_PORTAL_URL?: string;
+
+  /**
+   * Base Sepolia RPC URL (retained for non-activity routes / future use).
+   * Defaults to the public Base Sepolia endpoint.
+   */
+  BASE_SEPOLIA_RPC_URL?: string;
+
   // ── secrets (set via `wrangler secret put NAME`) ────────────────
-  // (none yet — added when sessions/attester light up)
+  /**
+   * Neon Postgres connection string for the `polis` DB (enterprise/company
+   * identity). OPTIONAL until provisioned — routes that need it degrade to
+   * a 503 `db_unprovisioned`, mirroring the LINKS KV pattern, so the Worker
+   * still boots and the on-chain routes are unaffected. Use Neon's pooled
+   * HTTP endpoint URL here (the Worker uses `@neondatabase/serverless`).
+   *
+   * ACTIVITY_DATABASE_URL is retained as an optional future fallback but is
+   * NOT required — `/v1/activity` uses the SQD Portal Stream API directly
+   * (decision 2026-06-26, ENTERPRISE_MODULE_PLAN.md §3).
+   */
+  POLIS_DATABASE_URL?: string;
+  ACTIVITY_DATABASE_URL?: string;
 
   // ── KV namespaces (provisioned in later sessions) ───────────────
   // SESSIONS: KVNamespace;
